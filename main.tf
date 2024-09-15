@@ -33,9 +33,26 @@ resource "aws_security_group" "minecraft_sg" {
   }
 }
 
+// Find latest Ubuntu AMI, use as default if no AMI specified
+data "aws_ami" "ubuntu" {
+  most_recent = true
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  owners = ["099720109477"] # Canonical
+}
+
 resource "aws_instance" "minecraft_server" {
-  ami           = "ami-00b2b33fc1d323a54" # Ubuntu 22.04 LTS - amd64 - eu-west-2 - changes as needed
-  instance_type = "t4g.small"
+  ami           = data.aws_ami.ubuntu.id # Ubuntu 22.04 LTS - amd64 - eu-west-2 - changes as needed
+  instance_type = "m4.large"
   key_name      = aws_key_pair.minecraft_key.key_name
   security_groups = [aws_security_group.minecraft_sg.name]
 
@@ -52,10 +69,9 @@ resource "aws_instance" "minecraft_server" {
     inline = [
       "sudo apt update",
       "sudo apt install -y wget unzip",
-      "wget https://minecraft.net/en-us/download/server/bedrock -O bedrock-server.zip",
-      "unzip bedrock-server.zip -d /minecraft",
-      "rm bedrock-server.zip",
-      "sudo nohup /minecraft/bedrock_server > bedrock.log 2>&1 &"
+      "wget https://minecraft.azureedge.net/bin-linux/bedrock-server-1.21.23.01.zip -O bedrock-server.zip",
+      "sudo unzip bedrock-server.zip -d /minecraft",
+      "sudo rm bedrock-server.zip"
     ]
 
     connection {
@@ -82,10 +98,7 @@ resource "aws_volume_attachment" "minecraft_volume_attachment" {
   instance_id = aws_instance.minecraft_server.id
 }
 
-resource "aws_elastic_ip" "minecraft_eip" {
+resource "aws_eip" "minecraft_eip" {
   instance = aws_instance.minecraft_server.id
 }
 
-output "server_ip" {
-  value = aws_elastic_ip.minecraft_eip.public_ip
-}
